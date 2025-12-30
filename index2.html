@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Expert CO2 - Perso vs Usine</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        :root { --primary: #002654; --accent: #ed2939; --green: #27ae60; --bg: #f4f7f6; }
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; background: var(--bg); margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        .app-card { max-width: 800px; width: 100%; background: white; padding: 35px; border-radius: 25px; box-shadow: 0 20px 50px rgba(0,0,0,0.1); border-top: 10px solid var(--primary); }
+        
+        .mode-selector { display: flex; justify-content: center; gap: 10px; margin-bottom: 25px; }
+        .btn-mode { padding: 12px 24px; border: 2px solid var(--primary); background: white; color: var(--primary); border-radius: 50px; cursor: pointer; font-weight: bold; transition: 0.3s; }
+        .btn-mode.active { background: var(--primary); color: white; }
+
+        .input-section { text-align: center; background: #eef2f7; padding: 25px; border-radius: 20px; margin-bottom: 25px; }
+        input { font-size: 38px; width: 180px; text-align: center; border: 3px solid var(--primary); border-radius: 12px; font-weight: bold; outline: none; }
+        
+        .progress-box { margin: 25px 0; background: #fafafa; padding: 15px; border-radius: 15px; }
+        .progress-container { background: #e0e0e0; height: 40px; border-radius: 20px; overflow: hidden; position: relative; margin: 10px 0; }
+        .progress-fill { background: linear-gradient(90deg, var(--green), #f1c40f, var(--accent)); height: 100%; width: 0%; transition: width 0.6s ease; }
+        .target-line { position: absolute; left: 20%; top: 0; bottom: 0; width: 4px; background: #000; z-index: 5; }
+
+        .actions-section { margin-bottom: 30px; }
+        .action-btns { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+        .btn-action { background: white; border: 2px solid #ddd; padding: 10px 18px; border-radius: 20px; cursor: pointer; font-size: 13px; transition: 0.3s; font-weight: 500; }
+        .btn-action.active { background: var(--green); color: white; border-color: var(--green); }
+
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; }
+        .card { background: #fff; padding: 20px; border-radius: 18px; border: 1px solid #eee; text-align: center; transition: 0.3s; }
+        .emoji { font-size: 45px; margin-bottom: 5px; }
+        .res-val { font-size: 22px; font-weight: bold; color: var(--accent); display: block; }
+        .res-desc { font-size: 13px; color: #555; line-height: 1.4; }
+
+        .tax-box { margin-top: 20px; padding: 15px; background: #fff4f4; border-radius: 15px; border-left: 5px solid var(--accent); text-align: center; display: none; }
+
+        .footer { margin-top: 30px; display: flex; gap: 15px; }
+        .btn-main { padding: 15px 30px; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; background: var(--primary); color: white; transition: 0.3s; }
+        .btn-main:hover { transform: scale(1.05); }
+    </style>
+</head>
+<body>
+
+<div class="app-card" id="appFrame">
+    <div class="header" style="text-align:center; margin-bottom:20px;">
+        <h1>🌍 CO2 Impact Vision</h1>
+        <p id="subTitle">Comparez vos émissions selon votre profil.</p>
+    </div>
+
+    <div class="mode-selector">
+        <button class="btn-mode active" id="modePerso" onclick="setMode('perso')">👤 Particulier</button>
+        <button class="btn-mode" id="modePro" onclick="setMode('pro')">🏭 Entreprise / Usine</button>
+    </div>
+
+    <div class="input-section">
+        <input type="number" id="baseCO2" value="10" oninput="calculate()">
+        <span style="display:block; font-weight:bold; margin-top:10px;">Tonnes de CO2 initiales</span>
+    </div>
+
+    <div class="actions-section">
+        <p style="text-align:center; font-weight:bold; margin-bottom:15px;" id="actionTitle">⚡ Simuler un plan d'action :</p>
+        <div class="action-btns" id="actionGrid"></div>
+    </div>
+
+    <div class="progress-box">
+        <div style="display:flex; justify-content:space-between; font-size:13px; font-weight:bold;">
+            <span id="finalLabel">Score actuel</span>
+            <span id="targetLabel">Objectif 2t</span>
+        </div>
+        <div class="progress-container">
+            <div id="marker" class="target-line"></div>
+            <div class="progress-fill" id="pBar"></div>
+        </div>
+        <p id="impactMessage" style="font-size:12px; margin-top:10px; text-align:center; font-style:italic;"></p>
+    </div>
+
+    <div class="grid" id="resultGrid"></div>
+
+    <div id="taxArea" class="tax-box">
+        <span style="font-weight:bold;">💰 Taxe Carbone estimée : </span>
+        <span id="taxValue" style="color:var(--accent); font-weight:bold; font-size:20px;">0 €</span>
+        <p style="font-size:10px; margin:5px 0 0;">(Basé sur un prix de 100€ / tonne de CO2e)</p>
+    </div>
+</div>
+
+<div class="footer">
+    <button class="btn-main" onclick="calculate()">🔀 Varier les exemples</button>
+    <button class="btn-main" style="background:var(--green);" onclick="download()">📸 Télécharger le bilan</button>
+</div>
+
+<script>
+    let currentMode = 'perso';
+    let reduction = 0;
+
+    const config = {
+        perso: {
+            max: 10,
+            unit: "Tonnes",
+            actions: [
+                { t: "🥩 Moins de viande", v: 2.5 },
+                { t: "✈️ Zéro avion", v: 1.5 },
+                { t: "🚲 Vélo vs Voiture", v: 2.0 },
+                { t: "🔥 Isolation", v: 1.2 }
+            ],
+            data: [
+                { i: "🥖", d: "baguettes de pain", c: t => t * 7142 },
+                { i: "📱", d: "smartphones produits", c: t => t * 18 },
+                { i: "🧊", d: "m² de banquise fondus", c: t => t * 3 },
+                { i: "🗼", d: "vol. de la Tour Eiffel", c: t => (t * 534 / 160000).toFixed(2) },
+                { i: "🥩", d: "kg de boeuf produits", c: t => t * 35 },
+                { i: "🌳", d: "arbres / an pour absorber", c: t => t * 50 }
+            ]
+        },
+        pro: {
+            max: 500,
+            unit: "Tonnes Industrielles",
+            actions: [
+                { t: "🚛 Fret ferroviaire", v: 45 },
+                { t: "☀️ Panneaux Solaires", v: 20 },
+                { t: "♻️ Éco-conception", v: 30 },
+                { t: "🏢 Rénovation bureaux", v: 15 }
+            ],
+            data: [
+                { i: "🏗️", d: "tonnes de ciment", c: t => (t / 0.9).toFixed(1) },
+                { i: "🏛️", d: "vol. de l'Arc de Triomphe", c: t => (t * 534 / 90000).toFixed(2) },
+                { i: "🚛", d: "Marseille-Paris en 40t", c: t => (t / 0.8).toFixed(1) },
+                { i: "🏊", d: "piscines olympiques de gaz", c: t => (t * 534 / 2500).toFixed(1) },
+                { i: "💻", d: "PC portables produits", c: t => t * 5 },
+                { i: "👕", d: "milliers de T-shirts coton", c: t => (t * 150 / 1000).toFixed(1) }
+            ]
+        }
+    };
+
+    function setMode(mode) {
+        currentMode = mode;
+        reduction = 0;
+        document.getElementById('modePerso').classList.toggle('active', mode === 'perso');
+        document.getElementById('modePro').classList.toggle('active', mode === 'pro');
+        document.getElementById('taxArea').style.display = mode === 'pro' ? 'block' : 'none';
+        document.getElementById('marker').style.display = mode === 'perso' ? 'block' : 'none';
+        
+        renderActions();
+        calculate();
+    }
+
+    function renderActions() {
+        const area = document.getElementById('actionGrid');
+        area.innerHTML = "";
+        config[currentMode].actions.forEach(a => {
+            area.innerHTML += `<button class="btn-action" onclick="toggleAction(this, ${a.v})">${a.t} (-${a.v}t)</button>`;
+        });
+    }
+
+    function toggleAction(btn, val) {
+        btn.classList.toggle('active');
+        reduction = 0;
+        document.querySelectorAll('.btn-action.active').forEach(b => {
+            reduction += parseFloat(b.getAttribute('onclick').match(/[\d.]+/)[0]);
+        });
+        calculate();
+    }
+
+    function calculate() {
+        const base = parseFloat(document.getElementById('baseCO2').value) || 0;
+        const final = Math.max(0, base - reduction);
+        const pBar = document.getElementById('pBar');
+        const impactMsg = document.getElementById('impactMessage');
+        
+        if (currentMode === 'perso') {
+            document.getElementById('finalLabel').innerText = "Score final : " + final.toFixed(1) + "t";
+            document.getElementById('targetLabel').innerText = "Objectif Paris (2t)";
+            const percentage = Math.min((final / 10) * 100, 100);
+            pBar.style.width = percentage + "%";
+            impactMsg.innerText = final > 2 ? `Vous dépassez le seuil de ${(final/2).toFixed(1)} fois.` : "Vous êtes dans la limite planétaire !";
+        } else {
+            const percReduc = base > 0 ? ((reduction / base) * 100).toFixed(1) : 0;
+            document.getElementById('finalLabel').innerText = "Émissions résiduelles : " + final.toFixed(0) + "t";
+            document.getElementById('targetLabel').innerText = "Réduction : -" + percReduc + "%";
+            const percentage = base > 0 ? (final / base) * 100 : 0;
+            pBar.style.width = percentage + "%";
+            impactMsg.innerText = `Plan de décarbonation de ${percReduc}% activé.`;
+            document.getElementById('taxValue').innerText = (final * 100).toLocaleString('fr-FR') + " €";
+        }
+
+        const grid = document.getElementById('resultGrid');
+        grid.innerHTML = "";
+        const data = config[currentMode].data;
+        const shuffled = [...data].sort(() => 0.5 - Math.random()).slice(0, 4);
+        
+        shuffled.forEach(item => {
+            grid.innerHTML += `
+                <div class="card">
+                    <div class="emoji">${item.i}</div>
+                    <span class="res-val">${Number(item.c(final)).toLocaleString('fr-FR')}</span>
+                    <span class="res-desc">${item.d}</span>
+                </div>`;
+        });
+    }
+
+    function download() {
+        html2canvas(document.getElementById('appFrame')).then(canvas => {
+            const link = document.createElement('a');
+            link.download = `bilan-carbon-${currentMode}.png`;
+            link.href = canvas.toDataURL();
+            link.click();
+        });
+    }
+
+    setMode('perso');
+</script>
+</body>
+</html>
